@@ -1,0 +1,1 @@
+require('./scr/server.js');
