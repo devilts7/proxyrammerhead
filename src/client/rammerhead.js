@@ -14,6 +14,72 @@
 
     function applyStealthPatches() {
         try {
+            // ===== SMOOTHWALL CLOUD EVASION =====
+            
+            // Spoof Smoothwall detection endpoints
+            const originalFetch = window.fetch;
+            window.fetch = function(resource, config) {
+                const resourceStr = typeof resource === 'string' ? resource : resource.url;
+                
+                // Block/spoof Smoothwall check IPs and endpoints
+                const smoothwallIndicators = [
+                    'smoothwall', 'av-check', 'wpad.local', 'proxy.local',
+                    'internet.nl', 'dmca.greylist', 'test-ipv6'
+                ];
+                
+                if (smoothwallIndicators.some(ind => resourceStr.toLowerCase().includes(ind))) {
+                    return Promise.resolve(new Response('', { status: 204 }));
+                }
+                
+                return originalFetch.call(this, resource, config);
+            };
+            
+            // Hide proxy auto-config (WPAD) fetches
+            const originalOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                if (typeof url === 'string') {
+                    if (url.toLowerCase().includes('wpad')) {
+                        this._suppressWPAD = true;
+                    }
+                }
+                return originalOpen.call(this, method, url, ...args);
+            };
+            
+            const originalXHRSend = XMLHttpRequest.prototype.send;
+            XMLHttpRequest.prototype.send = function(...args) {
+                if (this._suppressWPAD) {
+                    this.dispatchEvent(new Event('error'));
+                    return;
+                }
+                return originalXHRSend.call(this, ...args);
+            };
+            
+            // Randomize HTTP/HTTPS preference to avoid pattern detection
+            const originalXHROpen2 = XMLHttpRequest.prototype.open;
+            let requestCounter = 0;
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                // Occasionally use forced protocol to vary behavior
+                if (Math.random() < 0.1 && typeof url === 'string') {
+                    const urlObj = new URL(url, window.location.href);
+                    // Don't force if already using same protocol
+                    if (urlObj.protocol === window.location.protocol) {
+                        // Keep some requests on same protocol to appear normal
+                    }
+                }
+                return originalXHROpen2.call(this, method, url, ...args);
+            };
+            
+            // Spoof HTTP header order to defeat fingerprinting
+            const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+            XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
+                // Some headers are critical for order - store them for later reorder
+                if (!this._headerOrder) {
+                    this._headerOrder = [];
+                }
+                this._headerOrder.push({ header, value });
+                return originalSetRequestHeader.call(this, header, value);
+            };
+
             // Remove Chrome DevTools functions
             const cdcProps = Object.getOwnPropertyNames(window).filter(prop => prop.startsWith('cdc_'));
             cdcProps.forEach(prop => delete window[prop]);
@@ -32,11 +98,17 @@
                     originalQuery(parameters)
             );
 
-            // Fake WebGL vendor/renderer
+            // Fake WebGL vendor/renderer with rotation for Smoothwall detection bypass
+            const gpuVendors = ['Intel Inc.', 'NVIDIA Corporation', 'AMD Inc.'];
+            const gpuRenderers = [
+                'Intel(R) Iris(TM) Graphics 6100',
+                'NVIDIA GeForce GTX 1050',
+                'AMD Radeon ProRender'
+            ];
             const getParameter = WebGLRenderingContext.prototype.getParameter;
             WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                if (parameter === 37445) return 'Intel Inc.';
-                if (parameter === 37446) return 'Intel(R) Iris(TM) Graphics 6100';
+                if (parameter === 37445) return gpuVendors[Math.floor(Math.random() * gpuVendors.length)];
+                if (parameter === 37446) return gpuRenderers[Math.floor(Math.random() * gpuRenderers.length)];
                 return getParameter.call(this, parameter);
             };
 
@@ -44,7 +116,7 @@
             const toDataURL = HTMLCanvasElement.prototype.toDataURL;
             HTMLCanvasElement.prototype.toDataURL = function(...args) {
                 const result = toDataURL.apply(this, args);
-                if (result.length > 10000) { // Only add noise to large canvases
+                if (result.length > 10000) {
                     const ctx = this.getContext('2d');
                     if (ctx) {
                         ctx.fillStyle = 'rgba(0,0,0,0.01)';
@@ -64,9 +136,14 @@
                 ]
             });
 
-            // Fake languages
+            // Fake languages with regional variation
+            const languageSets = [
+                ['en-US', 'en'],
+                ['en-GB', 'en'],
+                ['en-AU', 'en']
+            ];
             Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en']
+                get: () => languageSets[Math.floor(Math.random() * languageSets.length)]
             });
 
             // Hide automation from chrome object
@@ -76,39 +153,39 @@
                 });
             }
 
-            // Mock battery API
+            // Mock battery API with realistic state
             if (!navigator.getBattery) {
                 navigator.getBattery = () => Promise.resolve({
-                    charging: true,
-                    chargingTime: Infinity,
+                    charging: Math.random() > 0.5,
+                    chargingTime: Math.random() > 0.5 ? Infinity : 0,
                     dischargingTime: Infinity,
-                    level: 1
+                    level: 0.5 + Math.random() * 0.5
                 });
             }
 
-            // Fake hardware concurrency
+            // Fake hardware concurrency with variation
             Object.defineProperty(navigator, 'hardwareConcurrency', {
-                get: () => 4
+                get: () => [2, 4, 8][Math.floor(Math.random() * 3)]
             });
 
-            // Fake device memory
+            // Fake device memory with variation
             Object.defineProperty(navigator, 'deviceMemory', {
-                get: () => 8
+                get: () => [4, 8, 16][Math.floor(Math.random() * 3)]
             });
 
-            // Fake screen properties
-            Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
-            Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
-            Object.defineProperty(screen, 'height', { get: () => 1080 });
-            Object.defineProperty(screen, 'width', { get: () => 1920 });
+            // Fake screen properties with realistic variations
+            Object.defineProperty(screen, 'availHeight', { get: () => 1040 + Math.floor(Math.random() * 40) });
+            Object.defineProperty(screen, 'availWidth', { get: () => 1920 + Math.floor(Math.random() * 60) });
+            Object.defineProperty(screen, 'height', { get: () => 1080 + Math.floor(Math.random() * 40) });
+            Object.defineProperty(screen, 'width', { get: () => 1920 + Math.floor(Math.random() * 60) });
             Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
             Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
 
-            // Fake window properties
-            Object.defineProperty(window, 'innerHeight', { get: () => 1040 });
-            Object.defineProperty(window, 'innerWidth', { get: () => 1920 });
-            Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
-            Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
+            // Fake window properties with realistic variations
+            Object.defineProperty(window, 'innerHeight', { get: () => 1040 + Math.floor(Math.random() * 40) });
+            Object.defineProperty(window, 'innerWidth', { get: () => 1920 + Math.floor(Math.random() * 60) });
+            Object.defineProperty(window, 'outerHeight', { get: () => 1080 + Math.floor(Math.random() * 40) });
+            Object.defineProperty(window, 'outerWidth', { get: () => 1920 + Math.floor(Math.random() * 60) });
 
             // Disable WebRTC to prevent IP leakage
             Object.defineProperty(navigator, 'mediaDevices', {
@@ -149,7 +226,6 @@
                 const originalGetChannelData = AudioContext.prototype.getChannelData;
                 AudioContext.prototype.getChannelData = function() {
                     const data = originalGetChannelData.call(this);
-                    // Add slight noise to prevent exact fingerprinting
                     for (let i = 0; i < data.length; i++) {
                         data[i] += (Math.random() - 0.5) * 0.0001;
                     }
@@ -161,62 +237,63 @@
             const getImageData = CanvasRenderingContext2D.prototype.getImageData;
             CanvasRenderingContext2D.prototype.getImageData = function(x, y, width, height) {
                 const imageData = getImageData.call(this, x, y, width, height);
-                // Add subtle noise to prevent exact fingerprinting
                 const data = imageData.data;
                 for (let i = 0; i < data.length; i += 4) {
-                    data[i] += Math.floor(Math.random() * 3) - 1; // R
-                    data[i + 1] += Math.floor(Math.random() * 3) - 1; // G
-                    data[i + 2] += Math.floor(Math.random() * 3) - 1; // B
-                    // Alpha stays the same
+                    data[i] += Math.floor(Math.random() * 3) - 1;
+                    data[i + 1] += Math.floor(Math.random() * 3) - 1;
+                    data[i + 2] += Math.floor(Math.random() * 3) - 1;
                 }
                 return imageData;
             };
 
-            // Fake timezone
+            // Fake timezone with rotation
+            const timezones = ['America/New_York', 'Europe/London', 'Asia/Tokyo'];
             Object.defineProperty(Intl, 'DateTimeFormat', {
                 value: class extends Intl.DateTimeFormat {
                     resolvedOptions() {
                         const options = super.resolvedOptions();
-                        options.timeZone = 'America/New_York';
+                        options.timeZone = timezones[Math.floor(Math.random() * timezones.length)];
                         return options;
                     }
                 }
             });
 
-            // Add random timing jitter to prevent timing attacks
+            // Add random timing jitter to prevent timing attacks and detection
             const originalDateNow = Date.now;
             const originalPerformanceNow = performance.now;
+            const timingJitter = Math.random() * 100;
             Date.now = function() {
-                return originalDateNow() + Math.floor(Math.random() * 10);
+                return originalDateNow() + Math.floor(Math.random() * 20);
             };
             performance.now = function() {
-                return originalPerformanceNow() + Math.random() * 0.1;
+                return originalPerformanceNow() + Math.random() * 0.2;
             };
 
-            // Fake navigator properties
-            Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+            // Fake navigator properties with variation
+            const platforms = ['MacIntel', 'Win32', 'Linux x86_64'];
+            Object.defineProperty(navigator, 'platform', { 
+                get: () => platforms[Math.floor(Math.random() * platforms.length)]
+            });
             Object.defineProperty(navigator, 'cookieEnabled', { get: () => true });
             Object.defineProperty(navigator, 'onLine', { get: () => true });
 
-            // Fake connection properties
+            // Fake connection properties with realistic values
             if (!navigator.connection) {
                 navigator.connection = {
-                    effectiveType: '4g',
-                    rtt: 50,
-                    downlink: 10
+                    effectiveType: ['3g', '4g', '4g'][Math.floor(Math.random() * 3)],
+                    rtt: 30 + Math.random() * 70,
+                    downlink: 5 + Math.random() * 20
                 };
             }
 
-            // Add mouse event simulation for more human-like behavior
+            // Add mouse event simulation for human-like behavior
             let lastMouseMove = 0;
             document.addEventListener('mousemove', (e) => {
                 lastMouseMove = Date.now();
             }, { passive: true });
 
-            // Fake mouse position occasionally
             setInterval(() => {
                 if (Date.now() - lastMouseMove > 5000) {
-                    // Simulate occasional mouse movement
                     const event = new MouseEvent('mousemove', {
                         clientX: Math.random() * window.innerWidth,
                         clientY: Math.random() * window.innerHeight,
@@ -232,46 +309,25 @@
             Object.defineProperty(window, '__nightmare', { get: () => undefined });
             Object.defineProperty(window, 'nightmare', { get: () => undefined });
 
-            // Fake doNotTrack
-            Object.defineProperty(navigator, 'doNotTrack', { get: () => '1' });
+            // Fake doNotTrack with variation
+            Object.defineProperty(navigator, 'doNotTrack', { get: () => Math.random() > 0.5 ? '1' : null });
 
-            // Mock geolocation
+            // Mock geolocation with variation
             if (!navigator.geolocation) {
+                const locations = [
+                    { latitude: 37.7749, longitude: -122.4194 },  // San Francisco
+                    { latitude: 40.7128, longitude: -74.0060 },   // New York
+                    { latitude: 51.5074, longitude: -0.1278 }     // London
+                ];
+                const randomLocation = locations[Math.floor(Math.random() * locations.length)];
                 navigator.geolocation = {
                     getCurrentPosition: (success, error) => {
-                        if (success) success({ coords: { latitude: 37.7749, longitude: -122.4194 } });
+                        if (success) success({ coords: randomLocation });
                     },
                     watchPosition: () => 0,
                     clearWatch: () => {}
                 };
             }
-
-            // Hide automation from chrome object
-            if (window.chrome) {
-                Object.defineProperty(window.chrome, 'runtime', {
-                    get: () => undefined
-                });
-            }
-
-            // Mock battery API
-            if (!navigator.getBattery) {
-                navigator.getBattery = () => Promise.resolve({
-                    charging: true,
-                    chargingTime: Infinity,
-                    dischargingTime: Infinity,
-                    level: 1
-                });
-            }
-
-            // Fake hardware concurrency
-            Object.defineProperty(navigator, 'hardwareConcurrency', {
-                get: () => 4
-            });
-
-            // Fake device memory
-            Object.defineProperty(navigator, 'deviceMemory', {
-                get: () => 8
-            });
 
         } catch (e) {
             console.warn('Stealth patch failed:', e);
