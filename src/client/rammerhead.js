@@ -12,7 +12,276 @@
         addUrlShuffling();
     }
 
+    function applyStealthPatches() {
+        try {
+            // Remove Chrome DevTools functions
+            const cdcProps = Object.getOwnPropertyNames(window).filter(prop => prop.startsWith('cdc_'));
+            cdcProps.forEach(prop => delete window[prop]);
+
+            // Hide webdriver
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => false,
+                configurable: false
+            });
+
+            // Mock permissions API
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+
+            // Fake WebGL vendor/renderer
+            const getParameter = WebGLRenderingContext.prototype.getParameter;
+            WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                if (parameter === 37445) return 'Intel Inc.';
+                if (parameter === 37446) return 'Intel(R) Iris(TM) Graphics 6100';
+                return getParameter.call(this, parameter);
+            };
+
+            // Add canvas noise to prevent fingerprinting
+            const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                const result = toDataURL.apply(this, args);
+                if (result.length > 10000) { // Only add noise to large canvases
+                    const ctx = this.getContext('2d');
+                    if (ctx) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.01)';
+                        ctx.fillRect(Math.random() * this.width, Math.random() * this.height, 1, 1);
+                        return toDataURL.apply(this, args);
+                    }
+                }
+                return result;
+            };
+
+            // Hide automation indicators
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+                    { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                    { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' }
+                ]
+            });
+
+            // Fake languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en']
+            });
+
+            // Hide automation from chrome object
+            if (window.chrome) {
+                Object.defineProperty(window.chrome, 'runtime', {
+                    get: () => undefined
+                });
+            }
+
+            // Mock battery API
+            if (!navigator.getBattery) {
+                navigator.getBattery = () => Promise.resolve({
+                    charging: true,
+                    chargingTime: Infinity,
+                    dischargingTime: Infinity,
+                    level: 1
+                });
+            }
+
+            // Fake hardware concurrency
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 4
+            });
+
+            // Fake device memory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8
+            });
+
+            // Fake screen properties
+            Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+            Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+            Object.defineProperty(screen, 'height', { get: () => 1080 });
+            Object.defineProperty(screen, 'width', { get: () => 1920 });
+            Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
+            Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
+
+            // Fake window properties
+            Object.defineProperty(window, 'innerHeight', { get: () => 1040 });
+            Object.defineProperty(window, 'innerWidth', { get: () => 1920 });
+            Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
+            Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
+
+            // Disable WebRTC to prevent IP leakage
+            Object.defineProperty(navigator, 'mediaDevices', {
+                get: () => ({
+                    enumerateDevices: () => Promise.resolve([]),
+                    getUserMedia: () => Promise.reject(new Error('Not allowed'))
+                })
+            });
+
+            // Spoof WebRTC
+            if (window.RTCPeerConnection) {
+                const originalRTCPeerConnection = window.RTCPeerConnection;
+                window.RTCPeerConnection = function(...args) {
+                    const pc = new originalRTCPeerConnection(...args);
+                    pc.createDataChannel = () => ({});
+                    pc.createOffer = () => Promise.resolve({ type: 'offer', sdp: 'fake' });
+                    pc.createAnswer = () => Promise.resolve({ type: 'answer', sdp: 'fake' });
+                    pc.setLocalDescription = () => Promise.resolve();
+                    pc.setRemoteDescription = () => Promise.resolve();
+                    return pc;
+                };
+            }
+
+            // Hide WebGL extensions that might reveal automation
+            const getSupportedExtensions = WebGLRenderingContext.prototype.getSupportedExtensions;
+            WebGLRenderingContext.prototype.getSupportedExtensions = function() {
+                const extensions = getSupportedExtensions.call(this) || [];
+                return extensions.filter(ext =>
+                    !ext.includes('debug') &&
+                    !ext.includes('trace') &&
+                    !ext.includes('disjoint')
+                );
+            };
+
+            // Fake audio context fingerprint
+            if (window.AudioContext || window.webkitAudioContext) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                const originalGetChannelData = AudioContext.prototype.getChannelData;
+                AudioContext.prototype.getChannelData = function() {
+                    const data = originalGetChannelData.call(this);
+                    // Add slight noise to prevent exact fingerprinting
+                    for (let i = 0; i < data.length; i++) {
+                        data[i] += (Math.random() - 0.5) * 0.0001;
+                    }
+                    return data;
+                };
+            }
+
+            // Advanced canvas fingerprinting evasion
+            const getImageData = CanvasRenderingContext2D.prototype.getImageData;
+            CanvasRenderingContext2D.prototype.getImageData = function(x, y, width, height) {
+                const imageData = getImageData.call(this, x, y, width, height);
+                // Add subtle noise to prevent exact fingerprinting
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    data[i] += Math.floor(Math.random() * 3) - 1; // R
+                    data[i + 1] += Math.floor(Math.random() * 3) - 1; // G
+                    data[i + 2] += Math.floor(Math.random() * 3) - 1; // B
+                    // Alpha stays the same
+                }
+                return imageData;
+            };
+
+            // Fake timezone
+            Object.defineProperty(Intl, 'DateTimeFormat', {
+                value: class extends Intl.DateTimeFormat {
+                    resolvedOptions() {
+                        const options = super.resolvedOptions();
+                        options.timeZone = 'America/New_York';
+                        return options;
+                    }
+                }
+            });
+
+            // Add random timing jitter to prevent timing attacks
+            const originalDateNow = Date.now;
+            const originalPerformanceNow = performance.now;
+            Date.now = function() {
+                return originalDateNow() + Math.floor(Math.random() * 10);
+            };
+            performance.now = function() {
+                return originalPerformanceNow() + Math.random() * 0.1;
+            };
+
+            // Fake navigator properties
+            Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+            Object.defineProperty(navigator, 'cookieEnabled', { get: () => true });
+            Object.defineProperty(navigator, 'onLine', { get: () => true });
+
+            // Fake connection properties
+            if (!navigator.connection) {
+                navigator.connection = {
+                    effectiveType: '4g',
+                    rtt: 50,
+                    downlink: 10
+                };
+            }
+
+            // Add mouse event simulation for more human-like behavior
+            let lastMouseMove = 0;
+            document.addEventListener('mousemove', (e) => {
+                lastMouseMove = Date.now();
+            }, { passive: true });
+
+            // Fake mouse position occasionally
+            setInterval(() => {
+                if (Date.now() - lastMouseMove > 5000) {
+                    // Simulate occasional mouse movement
+                    const event = new MouseEvent('mousemove', {
+                        clientX: Math.random() * window.innerWidth,
+                        clientY: Math.random() * window.innerHeight,
+                        bubbles: true
+                    });
+                    document.dispatchEvent(event);
+                }
+            }, 10000);
+
+            // Hide automation from window properties
+            Object.defineProperty(window, 'callPhantom', { get: () => undefined });
+            Object.defineProperty(window, '_phantom', { get: () => undefined });
+            Object.defineProperty(window, '__nightmare', { get: () => undefined });
+            Object.defineProperty(window, 'nightmare', { get: () => undefined });
+
+            // Fake doNotTrack
+            Object.defineProperty(navigator, 'doNotTrack', { get: () => '1' });
+
+            // Mock geolocation
+            if (!navigator.geolocation) {
+                navigator.geolocation = {
+                    getCurrentPosition: (success, error) => {
+                        if (success) success({ coords: { latitude: 37.7749, longitude: -122.4194 } });
+                    },
+                    watchPosition: () => 0,
+                    clearWatch: () => {}
+                };
+            }
+
+            // Hide automation from chrome object
+            if (window.chrome) {
+                Object.defineProperty(window.chrome, 'runtime', {
+                    get: () => undefined
+                });
+            }
+
+            // Mock battery API
+            if (!navigator.getBattery) {
+                navigator.getBattery = () => Promise.resolve({
+                    charging: true,
+                    chargingTime: Infinity,
+                    dischargingTime: Infinity,
+                    level: 1
+                });
+            }
+
+            // Fake hardware concurrency
+            Object.defineProperty(navigator, 'hardwareConcurrency', {
+                get: () => 4
+            });
+
+            // Fake device memory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8
+            });
+
+        } catch (e) {
+            console.warn('Stealth patch failed:', e);
+        }
+    }
+
     function main() {
+        // Stealth patches to hide proxy detection
+        applyStealthPatches();
+
         fixUrlRewrite();
         fixElementGetter();
         fixCrossWindowLocalStorage();

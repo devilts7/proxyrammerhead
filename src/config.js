@@ -10,8 +10,8 @@ module.exports = {
     //// HOSTING CONFIGURATION ////
 
     bindingAddress: '0.0.0.0',
-    port: 8080,
-    crossDomainPort: 8081,
+    port: 9000,
+    crossDomainPort: 9001,
     publicDir: path.join(__dirname, '../public'), // set to null to disable
 
     // enable or disable multithreading
@@ -25,14 +25,22 @@ module.exports = {
     // this function's return object will determine how the client url rewriting will work.
     // set them differently from bindingAddress and port if rammerhead is being served
     // from a reverse proxy.
-    getServerInfo: () => ({ hostname: 'localhost', port: 8080, crossDomainPort: 8081, protocol: 'http:' }),
+    getServerInfo: function (req) {
+        const hostname = req.headers.host ? new URL('http://' + req.headers.host).hostname : 'localhost';
+        return {
+            hostname,
+            port: this.port,
+            crossDomainPort: this.crossDomainPort,
+            protocol: req.socket && req.socket.encrypted ? 'https:' : 'http:'
+        };
+    },
     // example of non-hard-coding the hostname header
     // getServerInfo: (req) => {
     //     return { hostname: new URL('http://' + req.headers.host).hostname, port: 443, crossDomainPort: 8443, protocol: 'https: };
     // },
 
     // enforce a password for creating new sessions. set to null to disable
-    password: 'sharkie4life',
+    password: null,
 
     // disable or enable localStorage sync (turn off if clients send over huge localStorage data, resulting in huge memory usages)
     disableLocalStorageSync: false,
@@ -54,16 +62,52 @@ module.exports = {
     //// REWRITE HEADER CONFIGURATION ////
 
     // removes reverse proxy headers
-    // cloudflare example:
-    // stripClientHeaders: ['cf-ipcountry', 'cf-ray', 'x-forwarded-proto', 'cf-visitor', 'cf-connecting-ip', 'cdn-loop', 'x-forwarded-for'],
-    stripClientHeaders: [],
+    stripClientHeaders: [
+        'via',
+        'x-forwarded-for',
+        'x-real-ip',
+        'x-proxy-id',
+        'proxy-connection',
+        'x-forwarded-proto',
+        'x-forwarded-host',
+        'x-forwarded-port',
+        'forwarded',
+        'cf-ray',
+        'cf-connecting-ip',
+        'cf-ipcountry',
+        'cdn-loop'
+    ],
     // if you want to modify response headers, like removing the x-frame-options header, do it like so:
     // rewriteServerHeaders: {
     //     // you can also specify a function to modify/add the header using the original value (undefined if adding the header)
     //     // 'x-frame-options': (originalHeaderValue) => '',
     //     'x-frame-options': null, // set to null to tell rammerhead that you want to delete it
     // },
-    rewriteServerHeaders: {},
+    rewriteServerHeaders: {
+        'server': 'nginx/1.18.0 (Ubuntu)',
+        'x-powered-by': null,
+        'x-frame-options': null,
+        'content-security-policy': null,
+        'x-content-type-options': null,
+        'referrer-policy': null,
+        'strict-transport-security': null,
+        'x-xss-protection': null,
+        'expect-ct': null,
+        'feature-policy': null,
+        'permissions-policy': 'geolocation=(), microphone=(), camera=()',
+        'accept-ranges': 'bytes',
+        'cache-control': 'max-age=0, private, must-revalidate',
+        'connection': 'keep-alive',
+        'date': new Date().toUTCString(),
+        'etag': null,
+        'last-modified': null,
+        'vary': 'Accept-Encoding',
+        'x-cache': null,
+        'x-cache-hits': null,
+        'x-cache-status': null,
+        'x-served-by': null,
+        'x-timer': null
+    },
 
     //// SESSION STORE CONFIG ////
 

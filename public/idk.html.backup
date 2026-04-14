@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .header {
+            background: #fff;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 1000;
+            position: relative;
+        }
+        .logo {
+            font-size: 36px;
+            color: #4285f4;
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .search-box {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 24px;
+            outline: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .search-box:focus {
+            border-color: #4285f4;
+            box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+        }
+        .buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .btn {
+            background: #f8f9fa;
+            border: 1px solid #f8f9fa;
+            border-radius: 4px;
+            color: #3c4043;
+            font-size: 14px;
+            margin: 0 4px;
+            padding: 0 16px;
+            line-height: 27px;
+            height: 36px;
+            min-width: 54px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .btn:hover {
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+            background: #f8f9fa;
+            border: 1px solid #dadce0;
+            color: #202124;
+        }
+        .content {
+            flex: 1;
+            position: relative;
+        }
+        .iframe-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            background: #fff;
+        }
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .home-view {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .footer {
+            margin-top: auto;
+            background: #f2f2f2;
+            padding: 20px;
+            text-align: center;
+            color: #70757a;
+            font-size: 14px;
+        }
+        .footer a {
+            color: #70757a;
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        .back-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: none;
+            z-index: 1001;
+        }
+        .back-btn:hover {
+            background: #3367d6;
+        }
+        .hidden-tests {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <button class="back-btn" id="back-btn">← Back to Search</button>
+
+    <div class="home-view" id="home-view">
+        <div class="header">
+            <div class="logo">Search</div>
+            <div class="search-container">
+                <input type="text" class="search-box" id="search-input" placeholder="Search the web" autocomplete="off">
+                <div class="buttons">
+                    <button class="btn" id="search-btn">Search</button>
+                    <button class="btn" id="lucky-btn">I'm Feeling Lucky</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <a href="#" onclick="showHome()">Home</a>
+            <a href="#">About</a>
+            <a href="#">Advertising</a>
+            <a href="#">Business</a>
+            <a href="#">How Search works</a>
+            <span>© 2024 Search</span>
+        </div>
+    </div>
+
+    <div class="iframe-container" id="iframe-container">
+        <iframe id="content-iframe" src="about:blank"></iframe>
+    </div>
+
+    <!-- Hidden stealth verification tests -->
+    <div class="hidden-tests" id="stealth-tests">
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // StrShuffler class for URL encoding (copied from script.js)
+        const mod = (n, m) => ((n % m) + m) % m;
+        const baseDictionary = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz~-';
+        const shuffledIndicator = '_rhs';
+        const generateDictionary = function () {
+            let str = '';
+            const split = baseDictionary.split('');
+            while (split.length > 0) {
+                str += split.splice(Math.floor(Math.random() * split.length), 1)[0];
+            }
+            return str;
+        };
+        class StrShuffler {
+            constructor(dictionary = generateDictionary()) {
+                this.dictionary = dictionary;
+            }
+            shuffle(str) {
+                if (str.startsWith(shuffledIndicator)) {
+                    return str;
+                }
+                let shuffledStr = '';
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charAt(i);
+                    const idx = baseDictionary.indexOf(char);
+                    if (char === '%' && str.length - i >= 3) {
+                        shuffledStr += char;
+                        shuffledStr += str.charAt(++i);
+                        shuffledStr += str.charAt(++i);
+                    } else if (idx === -1) {
+                        shuffledStr += char;
+                    } else {
+                        shuffledStr += this.dictionary.charAt(mod(idx + i, baseDictionary.length));
+                    }
+                }
+                return shuffledIndicator + shuffledStr;
+            }
+            unshuffle(str) {
+                if (!str.startsWith(shuffledIndicator)) {
+                    return str;
+                }
+
+                str = str.slice(shuffledIndicator.length);
+
+                let unshuffledStr = '';
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charAt(i);
+                    const idx = this.dictionary.indexOf(char);
+                    if (char === '%' && str.length - i >= 3) {
+                        unshuffledStr += char;
+                        unshuffledStr += str.charAt(++i);
+                        unshuffledStr += str.charAt(++i);
+                    } else if (idx === -1) {
+                        unshuffledStr += char;
+                    } else {
+                        unshuffledStr += baseDictionary.charAt(mod(idx - i, baseDictionary.length));
+                    }
+                }
+                return unshuffledStr;
+            }
+        }
+        StrShuffler.generateDictionary = generateDictionary;
+        (function() {
+            try {
+                // Remove Chrome DevTools functions
+                const cdcProps = Object.getOwnPropertyNames(window).filter(prop => prop.startsWith('cdc_'));
+                cdcProps.forEach(prop => delete window[prop]);
+
+                // Hide webdriver
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => false,
+                    configurable: false
+                });
+
+                // Mock permissions API
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+
+                // Fake WebGL vendor/renderer
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Intel Inc.';
+                    if (parameter === 37446) return 'Intel(R) Iris(TM) Graphics 6100';
+                    return getParameter.call(this, parameter);
+                };
+
+                // Add canvas noise to prevent fingerprinting
+                const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+                HTMLCanvasElement.prototype.toDataURL = function(...args) {
+                    const result = toDataURL.apply(this, args);
+                    if (result.length > 10000) {
+                        const ctx = this.getContext('2d');
+                        if (ctx) {
+                            ctx.fillStyle = 'rgba(0,0,0,0.01)';
+                            ctx.fillRect(Math.random() * this.width, Math.random() * this.height, 1, 1);
+                            return toDataURL.apply(this, args);
+                        }
+                    }
+                    return result;
+                };
+
+                // Hide automation indicators
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [
+                        { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+                        { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                        { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' }
+                    ]
+                });
+
+                // Fake languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+
+                // Hide automation from chrome object
+                if (window.chrome) {
+                    Object.defineProperty(window.chrome, 'runtime', {
+                        get: () => undefined
+                    });
+                }
+
+                // Mock battery API
+                if (!navigator.getBattery) {
+                    navigator.getBattery = () => Promise.resolve({
+                        charging: true,
+                        chargingTime: Infinity,
+                        dischargingTime: Infinity,
+                        level: 1
+                    });
+                }
+
+                // Fake hardware concurrency
+                Object.defineProperty(navigator, 'hardwareConcurrency', {
+                    get: () => 4
+                });
+
+                // Fake device memory
+                Object.defineProperty(navigator, 'deviceMemory', {
+                    get: () => 8
+                });
+
+                // Fake screen properties
+                Object.defineProperty(screen, 'availHeight', { get: () => 1040 });
+                Object.defineProperty(screen, 'availWidth', { get: () => 1920 });
+                Object.defineProperty(screen, 'height', { get: () => 1080 });
+                Object.defineProperty(screen, 'width', { get: () => 1920 });
+                Object.defineProperty(screen, 'colorDepth', { get: () => 24 });
+                Object.defineProperty(screen, 'pixelDepth', { get: () => 24 });
+
+                // Fake window properties
+                Object.defineProperty(window, 'innerHeight', { get: () => 1040 });
+                Object.defineProperty(window, 'innerWidth', { get: () => 1920 });
+                Object.defineProperty(window, 'outerHeight', { get: () => 1080 });
+                Object.defineProperty(window, 'outerWidth', { get: () => 1920 });
+
+                // Disable WebRTC to prevent IP leakage
+                Object.defineProperty(navigator, 'mediaDevices', {
+                    get: () => ({
+                        enumerateDevices: () => Promise.resolve([]),
+                        getUserMedia: () => Promise.reject(new Error('Not allowed'))
+                    })
+                });
+
+                // Spoof WebRTC
+                if (window.RTCPeerConnection) {
+                    const originalRTCPeerConnection = window.RTCPeerConnection;
+                    window.RTCPeerConnection = function(...args) {
+                        const pc = new originalRTCPeerConnection(...args);
+                        pc.createDataChannel = () => ({});
+                        pc.createOffer = () => Promise.resolve({ type: 'offer', sdp: 'fake' });
+                        pc.createAnswer = () => Promise.resolve({ type: 'answer', sdp: 'fake' });
+                        pc.setLocalDescription = () => Promise.resolve();
+                        pc.setRemoteDescription = () => Promise.resolve();
+                        return pc;
+                    };
+                }
+
+                // Hide WebGL extensions that might reveal automation
+                const getSupportedExtensions = WebGLRenderingContext.prototype.getSupportedExtensions;
+                WebGLRenderingContext.prototype.getSupportedExtensions = function() {
+                    const extensions = getSupportedExtensions.call(this) || [];
+                    return extensions.filter(ext =>
+                        !ext.includes('debug') &&
+                        !ext.includes('trace') &&
+                        !ext.includes('disjoint')
+                    );
+                };
+
+                // Fake audio context fingerprint
+                if (window.AudioContext || window.webkitAudioContext) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    const originalGetChannelData = AudioContext.prototype.getChannelData;
+                    AudioContext.prototype.getChannelData = function() {
+                        const data = originalGetChannelData.call(this);
+                        for (let i = 0; i < data.length; i++) {
+                            data[i] += (Math.random() - 0.5) * 0.0001;
+                        }
+                        return data;
+                    };
+                }
+
+                // Advanced canvas fingerprinting evasion
+                const getImageData = CanvasRenderingContext2D.prototype.getImageData;
+                CanvasRenderingContext2D.prototype.getImageData = function(x, y, width, height) {
+                    const imageData = getImageData.call(this, x, y, width, height);
+                    const data = imageData.data;
+                    for (let i = 0; i < data.length; i += 4) {
+                        data[i] += Math.floor(Math.random() * 3) - 1;
+                        data[i + 1] += Math.floor(Math.random() * 3) - 1;
+                        data[i + 2] += Math.floor(Math.random() * 3) - 1;
+                    }
+                    return imageData;
+                };
+
+                // Fake timezone
+                Object.defineProperty(Intl, 'DateTimeFormat', {
+                    value: class extends Intl.DateTimeFormat {
+                        resolvedOptions() {
+                            const options = super.resolvedOptions();
+                            options.timeZone = 'America/New_York';
+                            return options;
+                        }
+                    }
+                });
+
+                // Add random timing jitter to prevent timing attacks
+                const originalDateNow = Date.now;
+                const originalPerformanceNow = performance.now;
+                Date.now = function() {
+                    return originalDateNow() + Math.floor(Math.random() * 10);
+                };
+                performance.now = function() {
+                    return originalPerformanceNow() + Math.random() * 0.1;
+                };
+
+                // Fake navigator properties
+                Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });
+                Object.defineProperty(navigator, 'cookieEnabled', { get: () => true });
+                Object.defineProperty(navigator, 'onLine', { get: () => true });
+
+                // Fake connection properties
+                if (!navigator.connection) {
+                    navigator.connection = {
+                        effectiveType: '4g',
+                        rtt: 50,
+                        downlink: 10
+                    };
+                }
+
+                // Add mouse event simulation for more human-like behavior
+                let lastMouseMove = 0;
+                document.addEventListener('mousemove', (e) => {
+                    lastMouseMove = Date.now();
+                }, { passive: true });
+
+                setInterval(() => {
+                    if (Date.now() - lastMouseMove > 5000) {
+                        const event = new MouseEvent('mousemove', {
+                            clientX: Math.random() * window.innerWidth,
+                            clientY: Math.random() * window.innerHeight,
+                            bubbles: true
+                        });
+                        document.dispatchEvent(event);
+                    }
+                }, 10000);
+
+                // Hide automation from window properties
+                Object.defineProperty(window, 'callPhantom', { get: () => undefined });
+                Object.defineProperty(window, '_phantom', { get: () => undefined });
+                Object.defineProperty(window, '__nightmare', { get: () => undefined });
+                Object.defineProperty(window, 'nightmare', { get: () => undefined });
+
+                // Fake doNotTrack
+                Object.defineProperty(navigator, 'doNotTrack', { get: () => '1' });
+
+                // Mock geolocation
+                if (!navigator.geolocation) {
+                    navigator.geolocation = {
+                        getCurrentPosition: (success, error) => {
+                            if (success) success({ coords: { latitude: 37.7749, longitude: -122.4194 } });
+                        },
+                        watchPosition: () => 0,
+                        clearWatch: () => {}
+                    };
+                }
+
+            } catch (e) {
+                console.warn('Stealth patch failed:', e);
+            }
+        })();
+
+        // UI Management
+        const homeView = document.getElementById('home-view');
+        const iframeContainer = document.getElementById('iframe-container');
+        const contentIframe = document.getElementById('content-iframe');
+        const backBtn = document.getElementById('back-btn');
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const luckyBtn = document.getElementById('lucky-btn');
+
+        let currentSessionId = null;
+        let currentShuffler = null;
+
+        function showHome() {
+            homeView.style.display = 'flex';
+            iframeContainer.style.display = 'none';
+            backBtn.style.display = 'none';
+            searchInput.focus();
+        }
+
+        function showIframe(url) {
+            homeView.style.display = 'none';
+            iframeContainer.style.display = 'block';
+            backBtn.style.display = 'block';
+            contentIframe.src = url;
+        }
+
+        function getShuffleDict(sessionId) {
+            return fetch(`/api/shuffleDict?id=${sessionId}`)
+                .then(response => response.text())
+                .then(dict => dict ? new StrShuffler(dict) : null);
+        }
+
+        function performSearch(query, isLucky = false) {
+            if (!query.trim()) return;
+
+            // Create a new session if we don't have one
+            if (!currentSessionId) {
+                fetch('/newsession')
+                    .then(response => response.text())
+                    .then(sessionId => {
+                        currentSessionId = sessionId;
+                        return getShuffleDict(sessionId);
+                    })
+                    .then(shuffler => {
+                        currentShuffler = shuffler;
+                        const searchUrl = isLucky ?
+                            `https://www.google.com/search?q=${encodeURIComponent(query)}&btnI` :
+                            `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+
+                        // Use shuffler if available, otherwise use direct URL
+                        const finalUrl = currentShuffler ?
+                            `/${currentSessionId}/${currentShuffler.shuffle(searchUrl)}` :
+                            `/${currentSessionId}/${btoa(searchUrl).replace(/=+$/, '')}`;
+
+                        showIframe(finalUrl);
+                    })
+                    .catch(error => {
+                        console.error('Session creation failed:', error);
+                        // Fallback to direct search in iframe
+                        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                        showIframe(searchUrl);
+                    });
+            } else {
+                // Use existing session
+                const searchUrl = isLucky ?
+                    `https://www.google.com/search?q=${encodeURIComponent(query)}&btnI` :
+                    `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+
+                const finalUrl = currentShuffler ?
+                    `/${currentSessionId}/${currentShuffler.shuffle(searchUrl)}` :
+                    `/${currentSessionId}/${btoa(searchUrl).replace(/=+$/, '')}`;
+
+                showIframe(finalUrl);
+            }
+        }
+
+        // Event listeners
+        searchBtn.addEventListener('click', () => {
+            performSearch(searchInput.value);
+        });
+
+        luckyBtn.addEventListener('click', () => {
+            performSearch(searchInput.value, true);
+        });
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch(searchInput.value);
+            }
+        });
+
+        backBtn.addEventListener('click', showHome);
+
+        // Note: Iframe click interception removed due to CORS restrictions
+        // Users can navigate within the iframe normally, but links will open in new tabs/windows
+        // This is expected behavior for security reasons
+
+        // Focus on search input
+        searchInput.focus();
+
+        // Hidden stealth verification (runs in background)
+        function runStealthTests() {
+            const results = document.getElementById('results');
+
+            function addResult(test, result) {
+                const div = document.createElement('div');
+                div.innerHTML = `<strong>${test}:</strong> ${result}`;
+                results.appendChild(div);
+            }
+
+            // Run stealth tests silently
+            addResult('navigator.webdriver', navigator.webdriver);
+            const cdcFunctions = Object.getOwnPropertyNames(window).filter(name => name.startsWith('cdc_'));
+            addResult('CDC functions count', cdcFunctions.length);
+            addResult('navigator.plugins.length', navigator.plugins.length);
+            addResult('navigator.languages', JSON.stringify(navigator.languages));
+            addResult('navigator.hardwareConcurrency', navigator.hardwareConcurrency);
+            addResult('navigator.deviceMemory', navigator.deviceMemory);
+            addResult('window.chrome.runtime', window.chrome ? window.chrome.runtime : 'undefined');
+            addResult('screen.width', screen.width);
+            addResult('screen.height', screen.height);
+            addResult('RTCPeerConnection exists', !!window.RTCPeerConnection);
+            addResult('navigator.mediaDevices exists', !!navigator.mediaDevices);
+            addResult('navigator.connection.effectiveType', navigator.connection ? navigator.connection.effectiveType : 'undefined');
+            addResult('navigator.platform', navigator.platform);
+            addResult('navigator.doNotTrack', navigator.doNotTrack);
+            addResult('window.callPhantom', window.callPhantom);
+            addResult('window._phantom', window._phantom);
+            addResult('window.__nightmare', window.__nightmare);
+        }
+
+        // Run stealth tests in background
+        runStealthTests();
+
+        // Make iframe navigation stay within the app
+        window.showHome = showHome;
+    </script>
+</body>
+</html>
+            </div>
+            <input readonly type="text" class="form-control disable-text" id="session-id"
+                placeholder="click onn 'Create new session ID' or 'Fill in existing session ID' from below">
+            <div class="input-group-append">
+                <button class="btn btn-secondary" id="session-create-btn" type="button">Create new session ID</button>
+            </div>
+        </div>
+        <button class="btn btn-outline-secondary" id="session-advanced-toggle">Show advanced options</button>
+        <div class="mt-2 mb-4" id="session-advanced-container" style="display: none">
+            <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox" value="" id="session-shuffling" checked>
+                <label class="form-check-label" for="session-shuffling">Enable URL Shuffling</label>
+            </div>
+            <div class="input-group mb-3">
+                <div class="input-group-prepend">
+                    <span class="input-group-text">HTTP Proxy</span>
+                </div>
+                <input type="text" class="form-control" id="session-httpproxy"
+                    placeholder="http://username:password@proxyipaddress:proxyport">
+            </div>
+        </div>
+    </div>
+    <div class="row justify-content-center m-0">
+        <table class="table w-75 table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Session ID</th>
+                    <th>Created on</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>
