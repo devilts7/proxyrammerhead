@@ -125,11 +125,11 @@ module.exports = function setupPipeline(proxyServer, sessionStore) {
                 req.headers['user-agent'] = userAgents[Math.floor(Math.random() * userAgents.length)];
             } else if (ua.includes('Chrome')) {
                 // Slight variation on Chrome version to avoid exact matching
-                const versionMatch = ua.match(/Chrome\/(\\d+)/);
+                const versionMatch = ua.match(/Chrome\/(\d+)/);
                 if (versionMatch) {
                     const version = parseInt(versionMatch[1]);
                     const newVersion = version + Math.floor(Math.random() * 5) - 2;
-                    req.headers['user-agent'] = ua.replace(/Chrome\\/\\d+/, `Chrome/${Math.max(80, newVersion)}`);
+                    req.headers['user-agent'] = ua.replace(/Chrome\/\d+/, `Chrome/${Math.max(80, newVersion)}`);
                 }
             }
         }
